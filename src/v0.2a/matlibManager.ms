@@ -156,6 +156,7 @@ else
 	global _SET_DatabaseFolder =			getIniSetting _MLM_prefFile "Paths" "database"
 	global _SET_MatlibFolder =				getIniSetting _MLM_prefFile "Paths" "matlib"
 	global _SET_Categories =				execute(getIniSetting _MLM_prefFile "Datas" "categories")
+	global _SET_CatDef =					getIniSetting _MLM_prefFile "Datas" "defaultCategory"
 	global _SET_SepSym =					getIniSetting _MLM_prefFile "Datas" "separationSymbol"
 	global _SET_NumDig =					execute(getIniSetting _MLM_prefFile "Datas" "numberOfDigits")
 	global _SET_ExportMode =				execute(getIniSetting _MLM_prefFile "UI" "exportMode")
@@ -317,6 +318,16 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 		FNposImport _UIbtnExport.state _UIbtnImport.state
 		FNposFooter _UIbtnExport.state _UIbtnImport.state
 		FNwinSize _UIbtnExport.state _UIbtnImport.state
+	)
+
+	function FNgetDefCat =
+	(
+		if _SET_CatDef != "" do
+		(
+			_idItem = findItem _SET_Categories _SET_CatDef
+			_ddlExpCat.selection = _idItem
+			_ddlImpCat.selection = _idItem
+		)
 	)
 
 	-- Functions#Core
@@ -496,52 +507,81 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 
 	rollout _MLM_manage "Manage Matlib entries" width:560 height:480
 	(
-		listBox 		lbxCat 			"" 							pos:[8,24] 		width:96 	height:34 items:_SET_Categories
-		MultilistBox 	lbxEntries	 	"" 							pos:[112,24] 	width:320 	height:32
+		listBox 		lbxCat 			"" 							pos:[8,24] 		width:102 	height:34 items:_SET_Categories
+		MultilistBox 	lbxEntries	 	"" 							pos:[112,24] 	width:120	height:31
+		listBox 		lbxDetails		"" 							pos:[234,24] 	width:198 	height:34 enabled:false
 		button 			btnOpenData	 	"Open data's location" 		pos:[440,24] 	width:112 	height:24
 		button 			btnOpenMatlib	"Open matlib's location" 	pos:[440,56] 	width:112 	height:24
 		button 			btnChangeCat 	"Change category to:" 		pos:[440,88] 	width:112 	height:24
 		dropDownList 	ddlCatTarget 	"" 							pos:[440,120] 	width:112 	height:21 items:_SET_Categories
 		button 			btnClose 		"Close" 					pos:[440,448] 	width:112 	height:24
-		editText 		edtSearch 		"" 							pos:[108,450] 	width:324 	height:21
+		editText 		edtSearch 		"" 							pos:[108,448] 	width:124 	height:23
 		label 			lblCat 			"Categories:" 				pos:[8,8] 		width:80 	height:16
 		label 			lblEntries 		"Entries:" 					pos:[112,8] 	width:80 	height:16
+		label 			lblSearch 		"Search:" 					pos:[114,433] 	width:80 	height:16
+		label 			lblDetails 		"" 							pos:[234,8] 	width:300	height:16
 		button 			btnRename		"Rename to:" 				pos:[440,152] 	width:112 	height:24
 		editText 		edtRename 		"" 							pos:[437,180] 	width:115 	height:24
-		button 			btnDel 			"Delete" 					pos:[440,216] 	width:112 	height:24
-
-		function FNmajLbxEntries = lbxEntries.items = FNgetEntriesBySearch edtSearch.text lbxCat.selected
+		button 			btnDel 			"Delete" 					pos:[440,214] 	width:112 	height:24
 
 		function FNmajMainWin = _MLM_matlibManager._lbxImpMat.items = FNgetEntriesBySearch _MLM_matlibManager._edtImpSearch.text _MLM_matlibManager._ddlImpCat.text
 
-		on _MLM_manage open do
+		function FNmajLbxEntries = 
 		(
-			FNmajLbxEntries()
+			lbxEntries.items = FNgetEntriesBySearch edtSearch.text lbxCat.selected
+			lbxEntries.selection = 1
 		)
 
-		on lbxCat selected state do
+		function FNgetDetails =
 		(
-			FNmajLbxEntries()
-		)
+			_topSelection = lbxEntries.items.count
+			_selectedEntries = lbxEntries.selection
 
-		on btnChangeCat pressed do
-		(
-			_selectedEntries =  lbxEntries.selection
-			for i in _selectedEntries do 
+			if _topSelection > 0 then
 			(
-				_currentName = lbxEntries.items[i]
+				for i in _selectedEntries do
+				(
+					if i < _topSelection do	_topSelection = i
+				)
+	
+				_currentName = lbxEntries.items[_topSelection]
 				_currentCat = lbxCat.selected
-				_newCat = ddlCatTarget.text
-				_old = _SET_DatabaseFolder + _currentCat + "\\" + _currentName + ".mlm"
-				_new = _SET_DatabaseFolder + _newCat + "\\" + _currentName + ".mlm"
-				renameFile _old _new
+	
+				_fileSelected = _SET_DatabaseFolder + _currentCat + "\\" + _currentName + ".mlm"
+				local _fileSelectedO = openFile _fileSelected
+				local _container = #()
+				while not eof _fileSelectedO do
+				(
+					_readLine = readLine _fileSelectedO
+					_container = append _container _readLine
+					_objNotFound = #()
+				)
+				close _fileSelectedO
+				_matPath = _container[1]
+				_matDistrib = execute _container[2]
+	
+				_newArray = #()
+				for i in _matDistrib do
+				(
+					_str = i[1] + " : " + i[2]
+					_newArray = append _newArray _str
+				)
+	
+				lbxDetails.items = _newArray
+				lbxDetails.selection = 0
+				_fileSelectedStr = _fileSelected as string
+				_newLbl = _fileSelectedStr + ":"
+				lblDetails.text = _newLbl
 			)
-
-			FNmajLbxEntries()
-			FNmajMainWin()
+			else
+			(
+				lbxDetails.items = #()
+				lbxDetails.selection = 0
+				lblDetails.text = ""
+			)
 		)
 
-		on btnRename pressed do
+		function FNrenameEntries =
 		(
 			if edtRename.text == "" then
 			(
@@ -615,6 +655,45 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 					FNmajMainWin()
 				)
 			)
+		)
+
+		on _MLM_manage open do
+		(
+			FNmajLbxEntries()
+			FNgetDetails()
+		)
+
+		on lbxCat selected state do
+		(
+			FNmajLbxEntries()
+			FNgetDetails()
+		)
+
+		on lbxEntries selected state do
+		(
+			FNgetDetails()
+		)
+
+		on btnChangeCat pressed do
+		(
+			_selectedEntries =  lbxEntries.selection
+			for i in _selectedEntries do 
+			(
+				_currentName = lbxEntries.items[i]
+				_currentCat = lbxCat.selected
+				_newCat = ddlCatTarget.text
+				_old = _SET_DatabaseFolder + _currentCat + "\\" + _currentName + ".mlm"
+				_new = _SET_DatabaseFolder + _newCat + "\\" + _currentName + ".mlm"
+				renameFile _old _new
+			)
+
+			FNmajLbxEntries()
+			FNmajMainWin()
+		)
+
+		on btnRename pressed do
+		(
+			FNrenameEntries()
 		)
 
 		on btnOpenData pressed do
@@ -693,9 +772,7 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 			)
 
 			FNmajLbxEntries()
-			FNmajMainWin()
-
-
+			FNmajMainWin()  
 		)
 
 		on btnClose pressed do
@@ -706,6 +783,7 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 		on edtSearch changed value do
 		(
 			FNmajLbxEntries()
+			FNgetDetails()
 		)
 	)
 
@@ -738,6 +816,7 @@ rollout _MLM_matlibManager "Matlib Manager - 0.2a" width:248 height:488
 		clearlistener()
 		FNmajUIswitches()
 		FNmajUIicons()
+		FNgetDefCat()
 		_lbxImpMat.items = FNgetEntriesBySearch _edtImpSearch.text _ddlImpCat.text
 	)
 

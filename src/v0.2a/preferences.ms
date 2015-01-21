@@ -43,6 +43,7 @@ _MLM_deleteCatMsg02 = "If you choose keep, the folder will be kept, but won't be
 _MLM_TT_windowPos = "When checked, the main window's position will be saved, and the window will always appears on it's last place."
 _MLM_TT_windowState = "When checked, the state of \"the EXPORT\" and \"IMPORT\" buttons will be saved."
 _MLM_TT_popupWarn = "When checked, there are no errors/warning/info popups, all these informations are displayed in the maxscript listener (f11)"
+_MLM_TT_defCat = "Allows to specify a default category, which will be preselected in the export/import lists.\nRight-click to reset (no default category).\nYou can also use double-click to set a default category."
 
 -- Functions #HEADER
 function FNmsgBox _message =
@@ -64,12 +65,13 @@ if _checkPrefFile.count == 0 then
 	global _SET_Appearance 				= 2
 	global _SET_Icons 					= 1
 	global _SET_WinPositionRecord 		= true
-	global _SET_WinPositionPosition 	= [50,50]
+	global _SET_WinPositionPosition 	= [200,200]
 	global _SET_WindowState 			= true
 	global _SET_ExportToogle 			= true			
 	global _SET_ImportToogle			= true
 	global _SET_AutoClose 				= false
 	global _SET_PopUpWarning			= true
+	global _SET_CatDef					= ""
 
 	_oldMacroFile = _MLM_dir + "\\matlibManager.mcr"
 	_newMacroFile = _macroDir + "\\matlibManager.mcr"
@@ -82,6 +84,7 @@ else
 	global _SET_DatabaseFolder =			getIniSetting _MLM_prefFile "Paths" "database"
 	global _SET_MatlibFolder =				getIniSetting _MLM_prefFile "Paths" "matlib"
 	global _SET_Categories =				execute(getIniSetting _MLM_prefFile "Datas" "categories")
+	global _SET_CatDef =					getIniSetting _MLM_prefFile "Datas" "defaultCategory"
 	global _SET_SepSym =					getIniSetting _MLM_prefFile "Datas" "separationSymbol"
 	global _SET_NumDig =					execute(getIniSetting _MLM_prefFile "Datas" "numberOfDigits")
 	global _SET_ExportMode =				execute(getIniSetting _MLM_prefFile "UI" "exportMode")
@@ -109,10 +112,12 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 	button 			btnPathsMatlib 		"Browse..." 			pos:[344,86] 	width:64 	height:24
 	
 	groupBox 		grpCat 				"Categories" 			pos:[8,128] 	width:408 	height:136
-	listBox 		lbxCat 				"" 						pos:[16,144] 	width:320 	height:8
+	listBox 		lbxCatDef			"" 						pos:[16,144] 	width:18 	height:8 	enabled:false
+	listBox 		lbxCat 				"" 						pos:[34,144] 	width:302 	height:8
 	button 			btnCatAdd 			"Add..." 				pos:[344,144] 	width:64 	height:24
-	button 			btnCatEdit 			"Edit..." 				pos:[344,176] 	width:64 	height:24
-	button 			btnCatDel 			"Delete..." 			pos:[344,208] 	width:64 	height:24
+	button 			btnCatEdit 			"Edit..." 				pos:[344,172] 	width:64 	height:24
+	button 			btnCatDel 			"Delete..." 			pos:[344,200] 	width:64 	height:24
+	button 			btnCatDef 			"Default" 				pos:[344,228] 	width:64 	height:24 tooltip:_MLM_TT_defCat
 	
 	groupBox 		grpUi 				"UI" 					pos:[8,272] 	width:408 	height:126
 	label 			lblUiExportMode 	"Default export mode:" 	pos:[16,288] 	width:136 	height:16
@@ -152,7 +157,20 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 
 		_number = _number + "4"
 
-		edtExample.text = " randomObject" + edtSepSym.text + _number
+		edtExample.text = " $randomObject" + edtSepSym.text + _number
+	)
+
+	function FNcatDef =
+	(
+		_items = #()
+		for i in _SET_Categories do _items = append _items ""
+
+		if _SET_CatDef != "" do
+		(
+			_defId = findItem _SET_Categories _SET_CatDef
+			_items[_defId] = ">"
+		)
+		lbxCatDef.items = _items
 	)
 
 	function FNsetSettings =
@@ -176,6 +194,7 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 		_DatabaseFolder =			edtPathsDb.text
 		_MatlibFolder =				edtPathsMatlib.text
 		_Categories =				lbxCat.items
+		_Catdef =					_SET_CatDef
 		_ExportMode =				rdoUiExportMode.state
 		_Appearance =				rdoUiAppearance.state
 		_Icons =					rdoUiIcons.state
@@ -192,6 +211,7 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 		setIniSetting _MLM_prefFile "Paths" "database" (_DatabaseFolder as string)
 		setIniSetting _MLM_prefFile "Paths" "matlib" (_MatlibFolder as string)
 		setIniSetting _MLM_prefFile "Datas" "categories" (_Categories as string)
+		setIniSetting _MLM_prefFile "Datas" "defaultCategory" (_Catdef as string)
 		setIniSetting _MLM_prefFile "Datas" "separationSymbol" (_SepSym as string)
 		setIniSetting _MLM_prefFile "Datas" "numberOfDigits" (_NumDig as string)
 		setIniSetting _MLM_prefFile "UI" "exportMode" (_ExportMode as string)
@@ -238,11 +258,13 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 
 	function FNrefreshCat =
 	(
+		_SET_Categories = sort _SET_Categories
 		lbxCat.items = _SET_Categories
 	)
 
 	function FNcheckCat =
 	(
+		_SET_Categories = sort _SET_Categories
 		_nonFoundDir = "The following directories haven't been found, so these categories have been deleted:\n"
 		_errors = false
 		for i in _SET_Categories do
@@ -328,24 +350,43 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 			)
 			else
 			(			
-				if _editStatus == "add" do
+				_dbPath = ""
+
+				if _firstLaunch == true then
 				(
-					makeDir (_SET_DatabaseFolder + _currentName)
+					_dbPath = edtPathsDb.text
 				)
-	
-				if _editStatus == "edit" do
+				else
 				(
-					_old = _SET_DatabaseFolder + _editName
-					_new = _SET_DatabaseFolder + _currentName
-					renameFile _old _new
-					_deleteId = findItem _SET_Categories _editName
-					deleteItem _SET_Categories _deleteId
-					
+					_dbPath = _SET_DatabaseFolder
 				)
-				_SET_Categories = append _SET_Categories _currentName
-				setIniSetting _MLM_prefFile "Datas" "categories" (_SET_Categories as string)
-				FNrefreshCat()
-				destroyDialog _MLM_NewEditCat
+
+				if _dbPath != "" then
+				(
+					if _editStatus == "add" do
+					(
+						makeDir (_dbPath + _currentName)
+					)
+		
+					if _editStatus == "edit" do
+					(
+						_old = _dbPath + _editName
+						_new = _dbPath + _currentName
+						renameFile _old _new
+						_deleteId = findItem _SET_Categories _editName
+						deleteItem _SET_Categories _deleteId
+						
+					)
+					_SET_Categories = append _SET_Categories _currentName
+					setIniSetting _MLM_prefFile "Datas" "categories" (_SET_Categories as string)
+					FNrefreshCat()
+					destroyDialog _MLM_NewEditCat
+				)
+				else
+				(
+					FNmsgBox "The database path must be set to create the categories..."
+					destroyDialog _MLM_NewEditCat
+				)
 			)
 		)
 	)
@@ -358,9 +399,29 @@ rollout _MLM_preferences "Matlib Manager - Settings" width:424 height:516
 		(
 			btnCancel.enabled = false
 		)
-		FNsetSettings()
 		FNcheckCat()
+		FNsetSettings()
 		FNmajExampleField()
+		FNcatDef()
+		lbxCatDef.selection = 0
+	)
+
+	on btnCatDef pressed do
+	(
+		_SET_CatDef = lbxCat.selected
+		FNcatDef()
+	)
+
+	on btnCatDef rightclick do
+	(
+		_SET_CatDef = ""
+		FNcatDef()
+	)
+
+	on lbxCat doubleClicked _value do
+	(
+		_SET_CatDef = lbxCat.selected
+		FNcatDef()
 	)
 
 	on btnPathsDb pressed do
