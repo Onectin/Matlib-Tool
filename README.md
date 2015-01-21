@@ -1,6 +1,3 @@
-# Matlib-Tool
-Material Library Tool for 3dsMax
-
 Matlib-Manager
 ===============
 
